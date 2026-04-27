@@ -1,0 +1,4 @@
+name: SimpleBattle
+version: '1.0'
+main: fun.johand.simpleBattle.SimpleBattle
+api-version: '1.21'
