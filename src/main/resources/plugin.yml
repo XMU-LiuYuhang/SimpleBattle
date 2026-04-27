@@ -2,3 +2,15 @@ name: SimpleBattle
 version: '1.0'
 main: fun.johand.simpleBattle.SimpleBattle
 api-version: '1.21'
+depend: [LuckPerms, PlaceholderAPI]
+
+commands:
+  SimpleBattle:
+    description: 游戏控制命令
+    usage: /SimpleBattle <prepare|start>
+    permission: SimpleBattle.admin #需要管理权限
+    permission-message: 你没有权限管理这场战斗！
+permissions:
+  SimpleBattle.admin:
+    description: 允许玩家准备和开启游戏
+    default: op # 默认为管理员可用
