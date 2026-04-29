@@ -1,7 +1,7 @@
 package fun.johand.simpleBattle;
-
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import net.luckperms.api.LuckPerms;
+import net.luckperms.api.model.user.User;
 import net.luckperms.api.node.NodeType;
 import net.luckperms.api.node.types.InheritanceNode;
 import org.bukkit.*;
@@ -11,10 +11,13 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerPortalEvent;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
@@ -23,21 +26,25 @@ import org.bukkit.attribute.AttributeInstance;
 
 import java.util.*;
 
-public final class SimpleBattle extends JavaPlugin implements Listener {
+public final class SimpleBattle extends JavaPlugin implements Listener, TabCompleter {
     private LuckPerms luckPerms;
     private Map<UUID, Integer> personalKills = new HashMap<>();
     private Map<String, Integer> teamKills = new HashMap<>();
-    private final String GROUP_A = "Bage";
-    private final String GROUP_B = "Sumu";
+    private final String GROUP_A = "bage";
+    private final String GROUP_B = "sumu";
 
     @Override
     public void onEnable() {
         // 初始化Luckperms
         RegisteredServiceProvider<LuckPerms> provider = Bukkit.getServicesManager().getRegistration(LuckPerms.class);
+        Plugin plugin = Bukkit.getPluginManager().getPlugin("LifeStealZ");
         if (provider != null) this.luckPerms = provider.getProvider();
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
-            //new GameExpansion(this).register();
+            new GameExpansion(this).register();
         }
+        getCommand("SimpleBattle").setExecutor(this);
+        getCommand("SimpleBattle").setTabCompleter(this);
+        Bukkit.getPluginManager().registerEvents(this, this);
     }
 
     @Override
@@ -95,25 +102,28 @@ public final class SimpleBattle extends JavaPlugin implements Listener {
                     player.getLocation().getPitch()
             );
             player.setGameMode(GameMode.SURVIVAL);
-            player.setHealthScale(20);
             AttributeInstance attr = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
-
             if (attr != null) {
                 attr.setBaseValue(20.0);
-                player.setHealth(20.0);
             }
+            // 回满血
+            player.setHealth(20.0);
+            // 回满饱食度
+            player.setFoodLevel(20);
+            // 回满饱和度（防止立刻掉饥饿）
+            player.setSaturation(20.0f);
+
+            personalKills.clear();
             personalKills.put(player.getUniqueId(), 0);
             player.teleport(tpLoc);
             player.sendMessage("§a你已被召集到出生点！");
 
-            //分配luckperms组
-
-            setPlayerGroup(player, targetGroup);
         }
         world.getWorldBorder().setSize(10);
+        teamKills.clear();
         teamKills.put(GROUP_A, 0);
         teamKills.put(GROUP_B, 0);
-        }
+    }
 
     private void startGame(World world){
         world.getWorldBorder().setSize(500, 30);
@@ -131,7 +141,7 @@ public final class SimpleBattle extends JavaPlugin implements Listener {
     @EventHandler
     public void onKill(PlayerDeathEvent event){
         Player victim = event.getEntity();
-        Player killer = event.getPlayer();
+        Player killer = victim.getKiller();
 
         if (killer != null && !killer.equals(victim)){
             String killerGroup = luckPerms.getUserManager().getUser(killer.getUniqueId()).getPrimaryGroup();
@@ -140,21 +150,36 @@ public final class SimpleBattle extends JavaPlugin implements Listener {
             if(!killerGroup.equals(victimGroup)){
                 personalKills.put(killer.getUniqueId(), personalKills.getOrDefault(killer.getUniqueId(), 0) + 1);
                 teamKills.put(killerGroup, teamKills.getOrDefault(killerGroup, 0) + 1);
+                killer.sendMessage("击杀数：" + getPersonalKills(killer.getUniqueId()));
             }
         }
     }
 
     public int getPersonalKills(UUID uuid) { return personalKills.getOrDefault(uuid, 0); }
     public int getTeamKills(UUID uuid) {
-        String group = luckPerms.getUserManager().getUser(uuid).getPrimaryGroup();
+        User user = luckPerms.getUserManager().getUser(uuid);
+        if (user == null) return 0;
+        String group = user.getPrimaryGroup();
         return teamKills.getOrDefault(group, 0);
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public List<String> onTabComplete (CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             return List.of("prepare", "start");
         }
         return Collections.emptyList();
     }
+
+    @EventHandler
+    public void onPortalUse(PlayerPortalEvent event) {
+
+        World.Environment target = event.getTo().getWorld().getEnvironment();
+
+        if (target == World.Environment.NETHER || target == World.Environment.THE_END) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§c当前比赛禁止进入其他维度！");
+        }
+    }
+
 }

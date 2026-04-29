@@ -15,6 +15,10 @@ public class GameExpansion extends PlaceholderExpansion {
     public @NonNull String getAuthor() { return "Author"; }
     @Override
     public @NonNull String getVersion() { return "1.0"; }
+    @Override
+    public boolean persist() {
+        return true;
+    }
 
     @Override
     public String onPlaceholderRequest(Player player, String params) {
